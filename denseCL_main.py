@@ -23,7 +23,8 @@ def imshow(img):
 def train(train_loader, model):
     model.train()
     for i, (images, _) in enumerate(train_loader):
-        output, target = model(in_q=images[0], in_k=images[1])
+        logits, labels, logits_dense, labels_dense = model(images[0], images[1])
+        k = 1
 
 
 if __name__ == "__main__":
@@ -33,14 +34,11 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    backbone_dq = BackBone(dense=True)
-    backbone_dk = BackBone(dense=True)
+    backbone_q = BackBone()
+    backbone_k = BackBone()
 
-    backbone_gq = BackBone()
-    backbone_gk = BackBone()
+    model = DenseCL(backbone_q, backbone_k)
 
-    model = DenseCL(backbone_gq, backbone_gk, backbone_dq, backbone_dk)
-    model2 = ResNet(Bottleneck, [3, 4, 6, 3],)
     train(train_loader, model)
 
 
