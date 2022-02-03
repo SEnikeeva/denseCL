@@ -1,3 +1,5 @@
+import shutil
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -29,6 +31,10 @@ def train(train_loader, model, criterion, optimizer, **kwargs):
         optimizer.step()
 
 
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+
+
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     momentum = 0.9
@@ -57,6 +63,12 @@ def main():
                                 weight_decay=weight_decay)
     for epoch in range(start_epoch, epochs):
         train(train_loader, model, criterion, optimizer, lmbd=lmbd)
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'arch': 'resnet50',
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+        }, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
 
 if __name__ == "__main__":
