@@ -36,8 +36,7 @@ class DenseCL(nn.Module):
 
     @torch.no_grad()
     def update_queues(self, k_g, k_d):
-        # global average pooling
-        k_d = nn.functional.normalize(k_d.mean(dim=2), dim=1)
+        k_d = k_d.mean(dim=2)  # global average pooling
         batch_size = k_g.shape[0]
 
         ptr = int(self.ptr)
@@ -70,10 +69,9 @@ class DenseCL(nn.Module):
             feat_k = nn.functional.normalize(feat_k, dim=1)  # l2 normalized feature vector
             feat_q = nn.functional.normalize(feat_q, dim=1)  # l2 normalized feature vector
 
-            cosine = torch.einsum('bqi,bqj->bij', feat_k, feat_q)
+            cosine = torch.einsum('bqi,bqj->bij', feat_k, feat_q)  # the cosine similarity matrix
             match_idx = cosine.argmax(dim=1)
             d_q = d_q.gather(2, match_idx.unsqueeze(1).expand(-1, self.dim, -1))
-
 
         output_pos_g = torch.einsum('bd,bd->b', [g_q, g_k]).view(bs, 1)
         output_neg_g = torch.einsum('bd,dq->bq', [g_q, self.queue_g.clone().detach()])

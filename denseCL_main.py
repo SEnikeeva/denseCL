@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
+from tqdm import tqdm
 
 from backbone import BackBone
 from data_service import DataAugmentation
@@ -17,16 +18,21 @@ def imshow(img):
 
 
 def train(train_loader, model, criterion, optimizer, **kwargs):
-    lmbd = kwargs['lmbd']
-    model.train()
-    for i, (images, _) in enumerate(train_loader):
-        output_g, target_g, output_d, target_d = model(images[0], images[1])
-        loss_g = criterion(output_g, target_g)
-        loss_d = criterion(output_d, target_d)
-        loss = lmbd * loss_g + (1 - lmbd) * loss_d
+    with tqdm(train_loader, unit="batch") as t_epoch:
+        lmbd = kwargs['lmbd']
+        model.train()
+        for (images, _) in t_epoch:
+            t_epoch.set_description(f"Epoch {kwargs['epoch']}")
+            output_g, target_g, output_d, target_d = model(images[0], images[1])
+            loss_g = criterion(output_g, target_g)
+            loss_d = criterion(output_d, target_d)
+            loss = lmbd * loss_g + (1 - lmbd) * loss_d
 
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
+
+            accuracy = 100
+            t_epoch.set_postfix(loss=loss.item(), accuracy=accuracy)
 
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):
@@ -61,7 +67,7 @@ def main():
                                 momentum=momentum,
                                 weight_decay=weight_decay)
     for epoch in range(start_epoch, epochs):
-        train(train_loader, model, criterion, optimizer, lmbd=lmbd)
+        train(train_loader, model, criterion, optimizer, lmbd=lmbd, epoch=epoch)
         save_checkpoint({
             'epoch': epoch + 1,
             'arch': 'resnet50',
