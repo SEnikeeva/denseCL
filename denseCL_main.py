@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -8,6 +10,7 @@ from tqdm import tqdm
 from backbone import BackBone
 from data_service import DataAugmentation
 from denseCL import DenseCL
+from utils import clear_out_folder
 
 
 def imshow(img):
@@ -41,6 +44,12 @@ def save_checkpoint(state, filename='checkpoint.pth.tar'):
 
 # TODO: add gpu and distr
 def main():
+    checkpoints_folder = 'checkpoints'
+    if not os.path.exists(checkpoints_folder):
+        os.makedirs(checkpoints_folder)
+    else:
+        clear_out_folder(checkpoints_folder)
+    clear_out_folder("checkpoints")
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     momentum = 0.9
     weight_decay = 1e-4
@@ -73,7 +82,7 @@ def main():
             'arch': 'resnet50',
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
-        }, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
+        }, filename=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
 
 
 if __name__ == "__main__":
