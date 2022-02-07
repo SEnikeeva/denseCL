@@ -1,5 +1,3 @@
-import shutil
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -13,8 +11,8 @@ from denseCL import DenseCL
 
 def imshow(img):
     img = img / 2 + 0.5  # unnormalize
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    np_img = img.numpy()
+    plt.imshow(np.transpose(np_img, (1, 2, 0)))
     plt.show()
 
 
@@ -35,8 +33,9 @@ def save_checkpoint(state, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
 
 
+# TODO: add gpu and distr
 def main():
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     momentum = 0.9
     weight_decay = 1e-4
     lr = 0.3

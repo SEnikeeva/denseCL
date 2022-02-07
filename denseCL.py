@@ -53,18 +53,27 @@ class DenseCL(nn.Module):
 
         bs = in_k.size(0)
         g_q, d_q, feat_q = self.encoder_q(in_q)
+        g_q = nn.functional.normalize(g_q, dim=1)  # l2 normalized feature vector
         d_q = d_q.view(bs, d_q.size(1), -1)
         feat_q = feat_q.view(bs, feat_q.size(1), -1)
+        d_q = nn.functional.normalize(d_q, dim=1)  # l2 normalized feature vector
 
         with torch.no_grad():
 
             self.momentum_update_key_encoders()
             g_k, d_k, feat_k = self.encoder_k(in_k)
+            g_k = nn.functional.normalize(g_k, dim=1)  # l2 normalized feature vector
             d_k = d_k.view(bs, d_k.size(1), -1)
+            d_k = nn.functional.normalize(d_k, dim=1)  # l2 normalized feature vector
             feat_k = feat_k.view(bs, feat_k.size(1), -1)
+
+            feat_k = nn.functional.normalize(feat_k, dim=1)  # l2 normalized feature vector
+            feat_q = nn.functional.normalize(feat_q, dim=1)  # l2 normalized feature vector
+
             cosine = torch.einsum('bqi,bqj->bij', feat_k, feat_q)
             match_idx = cosine.argmax(dim=1)
             d_q = d_q.gather(2, match_idx.unsqueeze(1).expand(-1, self.dim, -1))
+
 
         output_pos_g = torch.einsum('bd,bd->b', [g_q, g_k]).view(bs, 1)
         output_neg_g = torch.einsum('bd,dq->bq', [g_q, self.queue_g.clone().detach()])
