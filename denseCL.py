@@ -1,10 +1,11 @@
 import torch.nn as nn
 import torch
+from torch.nn import functional as f
 
 
 class DenseCL(nn.Module):
 
-    def __init__(self, backbone_q, backbone_k, dict_size=65536, dim=128, m=0.999, tau=0.2):
+    def __init__(self, backbone_q, backbone_k, dict_size=6000, dim=128, m=0.999, tau=0.2):
 
         super(DenseCL, self).__init__()
 
@@ -24,8 +25,8 @@ class DenseCL(nn.Module):
         # dim x dict_size for multiplication
         self.register_buffer("queue_g", torch.randn(dim, self.dict_size))
         self.register_buffer("queue_d", torch.randn(dim, self.dict_size))
-        self.queue_g = nn.functional.normalize(self.queue_g, dim=0)
-        self.queue_d = nn.functional.normalize(self.queue_d, dim=0)
+        self.queue_g = f.normalize(self.queue_g, dim=0)
+        self.queue_d = f.normalize(self.queue_d, dim=0)
 
         self.register_buffer("ptr", torch.zeros(1, dtype=torch.long))
 
@@ -52,22 +53,22 @@ class DenseCL(nn.Module):
 
         bs = in_k.size(0)
         g_q, d_q, feat_q = self.encoder_q(in_q)
-        g_q = nn.functional.normalize(g_q, dim=1)  # l2 normalized feature vector
+        g_q = f.normalize(g_q, dim=1)  # l2 normalized feature vector
         d_q = d_q.view(bs, d_q.size(1), -1)
         feat_q = feat_q.view(bs, feat_q.size(1), -1)
-        d_q = nn.functional.normalize(d_q, dim=1)  # l2 normalized feature vector
+        d_q = f.normalize(d_q, dim=1)  # l2 normalized feature vector
 
         with torch.no_grad():
 
             self.momentum_update_key_encoders()
             g_k, d_k, feat_k = self.encoder_k(in_k)
-            g_k = nn.functional.normalize(g_k, dim=1)  # l2 normalized feature vector
+            g_k = f.normalize(g_k, dim=1)  # l2 normalized feature vector
             d_k = d_k.view(bs, d_k.size(1), -1)
-            d_k = nn.functional.normalize(d_k, dim=1)  # l2 normalized feature vector
+            d_k = f.normalize(d_k, dim=1)  # l2 normalized feature vector
             feat_k = feat_k.view(bs, feat_k.size(1), -1)
 
-            feat_k = nn.functional.normalize(feat_k, dim=1)  # l2 normalized feature vector
-            feat_q = nn.functional.normalize(feat_q, dim=1)  # l2 normalized feature vector
+            feat_k = f.normalize(feat_k, dim=1)  # l2 normalized feature vector
+            feat_q = f.normalize(feat_q, dim=1)  # l2 normalized feature vector
 
             cosine = torch.einsum('bqi,bqj->bij', feat_k, feat_q)  # the cosine similarity matrix
             match_idx = cosine.argmax(dim=1)
@@ -76,14 +77,12 @@ class DenseCL(nn.Module):
         output_pos_g = torch.einsum('bd,bd->b', [g_q, g_k]).view(bs, 1)
         output_neg_g = torch.einsum('bd,dq->bq', [g_q, self.queue_g.clone().detach()])
         output_g = torch.concat((output_pos_g, output_neg_g), dim=1) / self.tau
-        target_g = torch.zeros(output_g.size(0), dtype=torch.long)
-        # .cuda()
+        target_g = torch.zeros(output_g.size(0), dtype=torch.long).cuda()
 
         output_pos_d = torch.einsum('bdz,bdz->bz', [d_k, d_q]).view(bs, 1, d_q.size(-1))
         output_neg_d = torch.einsum('bdz,dq->bqz', [d_q, self.queue_d.clone().detach()])
         output_d = torch.concat((output_pos_d, output_neg_d), dim=1) / self.tau
-        target_d = torch.zeros((output_d.size(0), output_d.size(-1)), dtype=torch.long)
-        # .cuda()
+        target_d = torch.zeros((output_d.size(0), output_d.size(-1)), dtype=torch.long).cuda()
 
         self.update_queues(g_k, d_k)
         return output_g, target_g, output_d, target_d

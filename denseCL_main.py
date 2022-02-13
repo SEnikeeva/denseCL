@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from tqdm import tqdm
 
@@ -25,6 +26,11 @@ def train(train_loader, model, criterion, optimizer, **kwargs):
         lmbd = kwargs['lmbd']
         model.train()
         for (images, _) in t_epoch:
+            images[0] = images[0].cuda(non_blocking=True)
+            images[1] = images[1].cuda(non_blocking=True)
+
+            optimizer.zero_grad()
+
             t_epoch.set_description(f"Epoch {kwargs['epoch']}")
             output_g, target_g, output_d, target_d = model(images[0], images[1])
             loss_g = criterion(output_g, target_g)
@@ -34,8 +40,9 @@ def train(train_loader, model, criterion, optimizer, **kwargs):
             loss.backward()
             optimizer.step()
 
-            accuracy = 100
-            t_epoch.set_postfix(loss=loss.item(), accuracy=accuracy)
+            acc = accuracy(output_g, target_g)
+            t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
+    return loss
 
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):
@@ -54,14 +61,15 @@ def main():
     momentum = 0.9
     weight_decay = 1e-4
     lr = 0.3
-    batch_size = 4  # 256
+    batch_size = 64  # 256
     start_epoch = 0
-    epochs = 3  # 800
+    epochs = 100  # 800
     lmbd = 0.5
 
-    dataset_path = "~/fiftyone/coco-2017/validation/"
+    dataset_path = "~/fiftyone/coco-2017/train/"
     train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=DataAugmentation())
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
+                                               num_workers=8, pin_memory=True)
 
     backbone_q = BackBone()
     backbone_k = BackBone()
@@ -69,20 +77,32 @@ def main():
     model = DenseCL(backbone_q, backbone_k)
     print(model)
 
-    criterion = nn.CrossEntropyLoss()
-    # .cuda(args.gpu)
+    model.cuda()
+
+    criterion = nn.CrossEntropyLoss().cuda()
 
     optimizer = torch.optim.SGD(model.parameters(), lr,
                                 momentum=momentum,
                                 weight_decay=weight_decay)
+
+    writer = SummaryWriter()
+
     for epoch in range(start_epoch, epochs):
-        train(train_loader, model, criterion, optimizer, lmbd=lmbd, epoch=epoch)
+        loss = train(train_loader, model, criterion, optimizer, lmbd=lmbd, epoch=epoch)
+        writer.add_scalar("Loss/train", loss, epoch)
         save_checkpoint({
             'epoch': epoch + 1,
             'arch': 'resnet50',
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
         }, filename=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
+    writer.flush()
+    writer.close()
+
+
+# TODO: make it exist
+def accuracy(output, target):
+    return 100
 
 
 if __name__ == "__main__":

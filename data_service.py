@@ -19,6 +19,6 @@ class DataAugmentation:
     def __call__(self, img):
         """
         :param img: input image
-        :return: two random augmented views of one image.
+        :return: two random augmented views of one  image.
         """
         return [self.aug_methods(img), self.aug_methods(img)]
