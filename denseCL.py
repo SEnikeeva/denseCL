@@ -5,7 +5,7 @@ from torch.nn import functional as f
 
 class DenseCL(nn.Module):
 
-    def __init__(self, backbone_q, backbone_k, dict_size=6000, dim=128, m=0.999, tau=0.2):
+    def __init__(self, backbone_q, backbone_k, dict_size=65536, dim=128, m=0.999, tau=0.2):
 
         super(DenseCL, self).__init__()
 
