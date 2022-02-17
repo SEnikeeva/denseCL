@@ -14,6 +14,7 @@ class BackBone(ResNet):
             nn.ReLU(inplace=True),
             nn.Conv2d(2048, 128, 1, 1, 0, bias=True)
         )
+        # TODO: zero_init_residual
 
     def forward(self, x):
         x = self.conv1(x)

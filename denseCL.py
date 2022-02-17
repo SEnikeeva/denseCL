@@ -5,13 +5,14 @@ from torch.nn import functional as f
 
 class DenseCL(nn.Module):
 
-    def __init__(self, backbone_q, backbone_k, dict_size=65536, dim=128, m=0.999, tau=0.2):
+    def __init__(self, backbone_q, backbone_k, dict_size=65536, dim=128, m=0.999, tau=0.2, is_cuda=True):
 
         super(DenseCL, self).__init__()
 
         self.dim = dim
         self.m = m
         self.tau = tau
+        self.is_cuda = is_cuda
 
         self.encoder_q = backbone_q
         self.encoder_k = backbone_k
@@ -37,14 +38,21 @@ class DenseCL(nn.Module):
 
     @torch.no_grad()
     def update_queues(self, k_g, k_d):
-        k_d = k_d.mean(dim=2)  # global average pooling
+        k_d = f.normalize(k_d.mean(dim=2), dim=1) # global average pooling
         batch_size = k_g.shape[0]
 
         ptr = int(self.ptr)
-
-        self.queue_g[:, ptr:ptr + batch_size] = k_g.T
-        self.queue_d[:, ptr:ptr + batch_size] = k_d.T
-        ptr = (ptr + batch_size) % self.dict_size  # move pointer
+        if ptr + batch_size > self.dict_size:
+            part_size = self.dict_size - ptr
+            self.queue_g[:, ptr:] = k_g.T[:, :part_size]
+            self.queue_g[:, :batch_size - part_size] = k_g.T[:, part_size:]
+            self.queue_d[:, ptr:] = k_d.T[:, :part_size]
+            self.queue_d[:, :batch_size - part_size] = k_d.T[:, part_size:]
+            ptr = batch_size - part_size
+        else:
+            self.queue_g[:, ptr:ptr + batch_size] = k_g.T
+            self.queue_d[:, ptr:ptr + batch_size] = k_d.T
+            ptr = (ptr + batch_size) % self.dict_size  # move pointer
 
         self.ptr[0] = ptr
 
@@ -77,12 +85,18 @@ class DenseCL(nn.Module):
         output_pos_g = torch.einsum('bd,bd->b', [g_q, g_k]).view(bs, 1)
         output_neg_g = torch.einsum('bd,dq->bq', [g_q, self.queue_g.clone().detach()])
         output_g = torch.concat((output_pos_g, output_neg_g), dim=1) / self.tau
-        target_g = torch.zeros(output_g.size(0), dtype=torch.long).cuda()
+        if self.is_cuda:
+            target_g = torch.zeros(output_g.size(0), dtype=torch.long).cuda()
+        else:
+            target_g = torch.zeros(output_g.size(0), dtype=torch.long)
 
         output_pos_d = torch.einsum('bdz,bdz->bz', [d_k, d_q]).view(bs, 1, d_q.size(-1))
         output_neg_d = torch.einsum('bdz,dq->bqz', [d_q, self.queue_d.clone().detach()])
         output_d = torch.concat((output_pos_d, output_neg_d), dim=1) / self.tau
-        target_d = torch.zeros((output_d.size(0), output_d.size(-1)), dtype=torch.long).cuda()
+        if self.is_cuda:
+            target_d = torch.zeros((output_d.size(0), output_d.size(-1)), dtype=torch.long).cuda()
+        else:
+            target_d = torch.zeros((output_d.size(0), output_d.size(-1)), dtype=torch.long)
 
         self.update_queues(g_k, d_k)
         return output_g, target_g, output_d, target_d
