@@ -4,21 +4,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
+import torchvision
 from tqdm import tqdm
 
 from backbone import BackBone
 from data_service import DataAugmentation
 from denseCL import DenseCL
+from unet import OriginalUNet
+from unetCL import UNetCL
 from utils import clear_out_folder
-
-
-def imshow(img):
-    img = img / 2 + 0.5  # unnormalize
-    np_img = img.numpy()
-    plt.imshow(np.transpose(np_img, (1, 2, 0)))
-    plt.show()
 
 
 def train(train_loader, model, criterion, optimizer, **kwargs):
@@ -34,18 +29,15 @@ def train(train_loader, model, criterion, optimizer, **kwargs):
                 images[1] = images[1]
 
             t_epoch.set_description(f"Epoch {kwargs['epoch']}")
-            output_g, target_g, output_d, target_d = model(images[0], images[1])
-            print(output_g)
-            loss_g = criterion(output_g, target_g)
-            loss_d = criterion(output_d, target_d)
-            loss = lmbd * loss_g + (1 - lmbd) * loss_d
-            print("LOSS: ", loss)
-
+            output, target = model(images[0], images[1])
+            # print('OUTPUT: ', output)
+            # print('TARGET: ', target)
+            loss = criterion(output, target)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            acc = accuracy(output_g, target_g)
+            acc = accuracy(output, target)
             t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
     return loss
 
@@ -73,13 +65,12 @@ def main(is_cuda=True):
 
     dataset_path = "~/fiftyone/coco-2017/try/"
     train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=DataAugmentation())
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                               num_workers=8, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
 
-    backbone_q = BackBone()
-    backbone_k = BackBone()
+    backbone_q = OriginalUNet()
+    backbone_k = OriginalUNet()
 
-    model = DenseCL(backbone_q, backbone_k, is_cuda=is_cuda)
+    model = UNetCL(backbone_q, backbone_k, is_cuda=is_cuda)
     print(model)
 
     if is_cuda:
