@@ -1,24 +1,16 @@
 import os
 
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from backbone import BackBone
-from data_service import DataAugmentation
-from denseCL import DenseCL
+from models.backbone import BackBone
+from data_process.augmentation import DataAugmentation
+from models.denseCL import DenseCL
+from models.unet import OriginalUNet
 from utils import clear_out_folder
-
-
-def imshow(img):
-    img = img / 2 + 0.5  # unnormalize
-    np_img = img.numpy()
-    plt.imshow(np.transpose(np_img, (1, 2, 0)))
-    plt.show()
 
 
 def train(train_loader, model, criterion, optimizer, **kwargs):
@@ -45,16 +37,10 @@ def train(train_loader, model, criterion, optimizer, **kwargs):
             loss.backward()
             optimizer.step()
 
-            acc = accuracy(output_g, target_g)
-            t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
+            t_epoch.set_postfix(loss=loss.item(), accuracy=100)
     return loss
 
 
-def save_checkpoint(state, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
-
-
-# TODO: add gpu and distr
 def main(is_cuda=True):
     checkpoints_folder = 'checkpoints'
     if not os.path.exists(checkpoints_folder):
@@ -74,10 +60,13 @@ def main(is_cuda=True):
     dataset_path = "~/fiftyone/coco-2017/try/"
     train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=DataAugmentation())
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                               num_workers=8, pin_memory=True)
+                                                pin_memory=True)
 
     backbone_q = BackBone()
     backbone_k = BackBone()
+
+    backbone_q = OriginalUNet()
+    backbone_k = OriginalUNet()
 
     model = DenseCL(backbone_q, backbone_k, is_cuda=is_cuda)
     print(model)
@@ -97,19 +86,14 @@ def main(is_cuda=True):
     for epoch in range(start_epoch, epochs):
         loss = train(train_loader, model, criterion, optimizer, lmbd=lmbd, epoch=epoch, cuda=False)
         writer.add_scalar("Loss/train", loss, epoch)
-        save_checkpoint({
+        torch.save({
             'epoch': epoch + 1,
             'arch': 'resnet50',
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
-        }, filename=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
+        }, f=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
     writer.flush()
     writer.close()
-
-
-# TODO: make it exist
-def accuracy(output, target):
-    return 100
 
 
 if __name__ == "__main__":

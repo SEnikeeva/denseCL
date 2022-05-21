@@ -1,107 +1,66 @@
-import os
-
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
-import torchvision
-from tqdm import tqdm
 
-from backbone import BackBone
-from data_service import DataAugmentation
-from denseCL import DenseCL
-from unet import OriginalUNet
-from unetCL import UNetCL
-from utils import clear_out_folder
+from data_process.augmentation import DataAugmentation, TargetAugmentation
+from data_process.dataset import CityscapesDataset
+from models.head import Head
+from models.unet import OriginalUNet
+from models.unetCL import UNetCL
+from scripts.train import train_backbone, train_head
 
 
-def train(train_loader, model, criterion, optimizer, **kwargs):
-    with tqdm(train_loader, unit="batch") as t_epoch:
-        lmbd = kwargs['lmbd']
-        model.train()
-        for (images, _) in t_epoch:
-            if kwargs['cuda']:
-                images[0] = images[0].cuda(non_blocking=True)
-                images[1] = images[1].cuda(non_blocking=True)
-            else:
-                images[0] = images[0]
-                images[1] = images[1]
+def main(trained_backbone=True):
+    is_cuda = True if torch.cuda.is_available() else False
 
-            t_epoch.set_description(f"Epoch {kwargs['epoch']}")
-            output, target = model(images[0], images[1])
-            # print('OUTPUT: ', output)
-            # print('TARGET: ', target)
-            loss = criterion(output, target)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            acc = accuracy(output, target)
-            t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
-    return loss
-
-
-def save_checkpoint(state, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
-
-
-# TODO: add gpu and distr
-def main(is_cuda=True):
-    checkpoints_folder = 'checkpoints'
-    if not os.path.exists(checkpoints_folder):
-        os.makedirs(checkpoints_folder)
-    else:
-        clear_out_folder(checkpoints_folder)
-    clear_out_folder("checkpoints")
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    momentum = 0.9
-    weight_decay = 1e-4
-    lr = 0.3
+    lr = 0.001
     batch_size = 4  # 256
-    start_epoch = 0
-    epochs = 3  # 800
-    lmbd = 0.5
+    epochs = 25  # 800
 
-    dataset_path = "~/fiftyone/coco-2017/try/"
-    train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=DataAugmentation())
+    head_checkpoints_folder = '/content/drive/MyDrive/colab/UNetCL/head_checkpoints'
+    model_checkpoints_folder = '/content/drive/MyDrive/colab/UNetCL/model_checkpoints'
+
+    dataset_path = '/content/drive/MyDrive/colab/UNetCL/cityscapes_dataset'
+    train_set = CityscapesDataset(mode='fine', split='train', transform=DataAugmentation(),
+                                  target_transform=TargetAugmentation(), root_dir=dataset_path)
+
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
 
     backbone_q = OriginalUNet()
     backbone_k = OriginalUNet()
 
     model = UNetCL(backbone_q, backbone_k, is_cuda=is_cuda)
-    print(model)
+    head = Head(128, 20)
 
     if is_cuda:
         model.cuda()
-        criterion = nn.CrossEntropyLoss().cuda()
+        head.cuda()
+        criterion_head = nn.CrossEntropyLoss(ignore_index=255).cuda()
     else:
-        criterion = nn.CrossEntropyLoss()
+        criterion_head = nn.CrossEntropyLoss(ignore_index=255)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr,
-                                momentum=momentum,
-                                weight_decay=weight_decay)
+    optimizer_head = torch.optim.Adam(head.parameters(), lr)
 
-    writer = SummaryWriter()
+    if not trained_backbone:
+        model = train_backbone(model, train_loader, is_cuda=is_cuda)
+    else:
+        torch.save({
+            'state_dict': model.state_dict()
+        }, f=f"{model_checkpoints_folder}/checkpoint_{0:04n}.pth.tar")
 
-    for epoch in range(start_epoch, epochs):
-        loss = train(train_loader, model, criterion, optimizer, lmbd=lmbd, epoch=epoch, cuda=False)
+    writer = SummaryWriter(log_dir='/content/drive/MyDrive/colab/UNetCL/runs')
+    for epoch in range(epochs):
+        loss = train_head(train_loader, model, head, criterion_head, optimizer_head, epoch=epoch, cuda=is_cuda)
         writer.add_scalar("Loss/train", loss, epoch)
-        save_checkpoint({
+        torch.save({
             'epoch': epoch + 1,
-            'arch': 'resnet50',
-            'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-        }, filename=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
+            'loss': loss,
+            'state_dict': head.state_dict(),
+            'optimizer': optimizer_head.state_dict(),
+        }, f=f"{head_checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
     writer.flush()
     writer.close()
 
 
-# TODO: make it exist
-def accuracy(output, target):
-    return 100
-
-
 if __name__ == "__main__":
-    main(is_cuda=False)
+    main()

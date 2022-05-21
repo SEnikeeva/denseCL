@@ -24,18 +24,18 @@ class OriginalUNet(nn.Module):
         self.dconv_down5 = double_conv(channels[3], channels[4])
 
         self.maxpool = nn.MaxPool2d(2)
-        self.upsample4 = nn.ConvTranspose2d(channels[-1], num_feat,
+        self.upsample4 = nn.ConvTranspose2d(channels[-1], channels[-2],
                                             kernel_size=2, stride=2)
-        self.upsample3 = nn.ConvTranspose2d(num_feat, num_feat,
+        self.upsample3 = nn.ConvTranspose2d(channels[-2], channels[-3],
                                             kernel_size=2, stride=2)
-        self.upsample2 = nn.ConvTranspose2d(num_feat, num_feat,
+        self.upsample2 = nn.ConvTranspose2d(channels[-3], channels[-4],
                                             kernel_size=2, stride=2)
         self.upsample1 = nn.ConvTranspose2d(num_feat, num_feat,
                                             kernel_size=2, stride=2)
 
-        self.dconv_up4 = double_conv(num_feat + channels[3], num_feat)
-        self.dconv_up3 = double_conv(num_feat + channels[2], num_feat)
-        self.dconv_up2 = double_conv(num_feat + channels[1], num_feat)
+        self.dconv_up4 = double_conv(channels[-2] + channels[3], channels[-2])
+        self.dconv_up3 = double_conv(channels[-3] + channels[2], channels[-3])
+        self.dconv_up2 = double_conv(channels[-4] + channels[1], channels[-4])
         self.dconv_up1 = double_conv(num_feat + channels[0], num_feat)
 
         self.padding = transforms.Pad(padding=92, padding_mode='reflect')
