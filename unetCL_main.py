@@ -3,15 +3,15 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from data_process.augmentation import DataAugmentation, TargetAugmentation
-from data_process.dataset import CityscapesDataset
+from data_process.cityscapes import CityscapesDataset
 from models.head import Head
 from models.unet import OriginalUNet
 from models.unetCL import UNetCL
-from scripts.train import train_backbone, train_head
+from scripts.train import train_backbone, train_epoch_head
 
 
 def main(trained_backbone=True):
-    is_cuda = True if torch.cuda.is_available() else False
+    is_cuda = torch.cuda.is_available()
 
     lr = 0.001
     batch_size = 4  # 256
@@ -50,7 +50,7 @@ def main(trained_backbone=True):
 
     writer = SummaryWriter(log_dir='/content/drive/MyDrive/colab/UNetCL/runs')
     for epoch in range(epochs):
-        loss = train_head(train_loader, model, head, criterion_head, optimizer_head, epoch=epoch, cuda=is_cuda)
+        loss = train_epoch_head(train_loader, model, head, criterion_head, optimizer_head, epoch=epoch, cuda=is_cuda)
         writer.add_scalar("Loss/train", loss, epoch)
         torch.save({
             'epoch': epoch + 1,

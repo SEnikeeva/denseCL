@@ -7,10 +7,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from models.backbone import BackBone
-from data_process.augmentation import DataAugmentation
+from data_process.augmentation import DataAugmentation, PretrainAugmentation
 from models.denseCL import DenseCL
-from models.unet import OriginalUNet
-from utils import clear_out_folder
+from scripts.utils import clear_out_folder
 
 
 def train(train_loader, model, criterion, optimizer, **kwargs):
@@ -58,15 +57,12 @@ def main(is_cuda=True):
     lmbd = 0.5
 
     dataset_path = "~/fiftyone/coco-2017/try/"
-    train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=DataAugmentation())
+    train_set = torchvision.datasets.ImageFolder(root=dataset_path, transform=PretrainAugmentation())
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                                pin_memory=True)
+                                               pin_memory=True)
 
     backbone_q = BackBone()
     backbone_k = BackBone()
-
-    backbone_q = OriginalUNet()
-    backbone_k = OriginalUNet()
 
     model = DenseCL(backbone_q, backbone_k, is_cuda=is_cuda)
     print(model)

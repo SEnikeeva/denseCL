@@ -1,37 +1,38 @@
 import torch
-import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from ignite.metrics import ConfusionMatrix, mIoU
-from ignite.engine import Engine
+
+from scripts.metrics import accuracy
 
 
-def train(train_loader, model, criterion, optimizer, **kwargs):
+def train_epoch_backbone(train_loader, model, criterion, optimizer, model_name, **kwargs):
+    lmbd = kwargs.get('lmbd')
     with tqdm(train_loader, unit="batch") as t_epoch:
         model.train()
         for (images, _) in t_epoch:
             if kwargs['cuda']:
                 images[0] = images[0].cuda(non_blocking=True)
                 images[1] = images[1].cuda(non_blocking=True)
-            else:
-                images[0] = images[0]
-                images[1] = images[1]
-
             t_epoch.set_description(f"Epoch {kwargs['epoch']}")
-            output, target = model(images[0], images[1])
-            loss = criterion(output, target)
+            if model_name == 'unetcl':
+                output, target = model(images[0], images[1])
+                loss = criterion(output, target)
+            else:
+                output_g, target_g, output_d, target_d = model(images[0], images[1])
+                loss_g = criterion(output_g, target_g)
+                loss_d = criterion(output_d, target_d)
+                loss = lmbd * loss_g + (1 - lmbd) * loss_d
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            acc = accuracy(output, target)
-            t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
+            t_epoch.set_postfix(loss=loss.item(), accuracy=100)
     return loss
 
 
-def train_head(train_loader, model, head, criterion, optimizer, **kwargs):
+def train_epoch_head(train_loader, model, head, criterion, optimizer, model_name='', **kwargs):
+    device = torch.device("cuda:0" if kwargs['cuda'] else "cpu")
 
-    device = kwargs['device']
     with tqdm(train_loader, unit="batch") as t_epoch:
         model.eval()
         head.train()
@@ -55,47 +56,43 @@ def train_head(train_loader, model, head, criterion, optimizer, **kwargs):
     return loss
 
 
-# TODO: make it exist
-def accuracy(output, target):
-    def eval_step(engine, batch):
-        return batch
-
-    default_evaluator = Engine(eval_step)
-    cm = ConfusionMatrix(num_classes=19)
-    metric = mIoU(cm, ignore_index=0)
-    metric.attach(default_evaluator, 'miou')
-    state = default_evaluator.run([[output, target]])
-    return state.metrics['miou']
-
-
-def train_backbone(model, train_loader, is_cuda=True):
-    checkpoints_folder = '/content/drive/MyDrive/colab/UNetCL/model_checkpoints'
-    momentum = 0.9
-    weight_decay = 1e-4
-    lr = 0.3
-    start_epoch = 0
-    epochs = 3  # 800
-
-    if is_cuda:
-        criterion = nn.CrossEntropyLoss().cuda()
-    else:
-        criterion = nn.CrossEntropyLoss()
-
-    optimizer = torch.optim.SGD(model.parameters(), lr,
-                                momentum=momentum,
-                                weight_decay=weight_decay)
-
-    writer = SummaryWriter()
-
+def train_backbone(model, optimizer, criterion, train_loader, epochs=10, start_epoch=0, is_cuda=True,
+                   model_name='unetcl',
+                   output_folder='/content/drive/MyDrive/colab/UNetCL/output', **kwargs):
+    checkpoints_folder = f'{output_folder}/{model_name}_checkpoints'
+    writer = SummaryWriter(log_dir=f'{output_folder}/{model_name}_runs')
     for epoch in range(start_epoch, epochs):
-        loss = train(train_loader, model, criterion, optimizer, epoch=epoch, cuda=False)
+        loss = train_epoch_backbone(train_loader, model, criterion, optimizer, model_name, epoch=epoch, cuda=is_cuda,
+                                    **kwargs)
         writer.add_scalar("Loss/train", loss, epoch)
         torch.save({
             'epoch': epoch + 1,
-            'arch': 'resnet50',
+            'arch': model_name,
+            'loss': loss,
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
         }, f=f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
+    writer.flush()
+
+    return model
+
+
+def train_head(head, model, optimizer, criterion, train_loader, epochs=10,
+               start_epoch=0, is_cuda=True, model_name='unetcl',
+               output_folder='/content/drive/MyDrive/colab/UNetCL/output', **kwargs):
+    head_checkpoints_folder = f'{output_folder}/{model_name}_head_checkpoints'
+    writer = SummaryWriter(log_dir=f'{output_folder}/{model_name}_head_runs')
+    for epoch in range(start_epoch, epochs):
+        loss = train_epoch_head(train_loader, model, head, criterion, optimizer,
+                                model_name=model_name, epoch=epoch, cuda=is_cuda, **kwargs)
+        writer.add_scalar("Loss/train", loss, epoch)
+        torch.save({
+            'epoch': epoch + 1,
+            'arch': f"{model_name}_head",
+            'loss': loss,
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+        }, f=f"{head_checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
     writer.flush()
 
     return model

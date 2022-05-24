@@ -5,7 +5,7 @@ from torch.nn import functional as f
 
 class UNetCL(nn.Module):
 
-    def __init__(self, backbone_q, backbone_k, dict_size=65, dim=128, m=0.999, tau=0.2, is_cuda=True):
+    def __init__(self, backbone_q, backbone_k, dict_size=65536, dim=128, m=0.999, tau=0.2, is_cuda=True):
 
         super(UNetCL, self).__init__()
 
