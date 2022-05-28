@@ -5,20 +5,27 @@ from tqdm import tqdm
 from scripts.metrics import accuracy
 
 
-def train_epoch_backbone(train_loader, model, criterion, optimizer, model_name, **kwargs):
+def train_epoch_backbone(train_loader, model, criterion, optimizer, model_name, cuda, **kwargs):
     lmbd = kwargs.get('lmbd')
+    dataset_type = 'coco-2017' if kwargs.get('dataset_type') is None else kwargs.get('dataset_type')
     with tqdm(train_loader, unit="batch") as t_epoch:
         model.train()
-        for (images, _) in t_epoch:
-            if kwargs['cuda']:
-                images[0] = images[0].cuda(non_blocking=True)
-                images[1] = images[1].cuda(non_blocking=True)
+        for (images, labels) in t_epoch:
+            if dataset_type == 'coco-2017':
+              images_q = images[0]
+              images_k = images[1]
+            else:
+              images_q = images
+              images_k = labels
+            if cuda:
+                images_q = images_q.cuda(non_blocking=True)
+                images_k = images_k.cuda(non_blocking=True)
             t_epoch.set_description(f"Epoch {kwargs['epoch']}")
             if model_name == 'unetcl':
-                output, target = model(images[0], images[1])
+                output, target = model(images_q, images_k)  # TODO: it seems like broken
                 loss = criterion(output, target)
             else:
-                output_g, target_g, output_d, target_d = model(images[0], images[1])
+                output_g, target_g, output_d, target_d = model(images_q, images_k)
                 loss_g = criterion(output_g, target_g)
                 loss_d = criterion(output_d, target_d)
                 loss = lmbd * loss_g + (1 - lmbd) * loss_d
@@ -90,7 +97,7 @@ def train_head(head, model, optimizer, criterion, train_loader, epochs=10,
             'epoch': epoch + 1,
             'arch': f"{model_name}_head",
             'loss': loss,
-            'state_dict': model.state_dict(),
+            'state_dict': head.state_dict(),
             'optimizer': optimizer.state_dict(),
         }, f=f"{head_checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
     writer.flush()

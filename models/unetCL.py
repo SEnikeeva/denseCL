@@ -57,16 +57,19 @@ class UNetCL(nn.Module):
         q = self.encoder_q(in_q)
         q = f.normalize(q, dim=1)  # l2 normalized feature vector
         q = q.view(bs, q.size(1), -1)
-
         with torch.no_grad():
             self.momentum_update_key_encoders()
             k = self.encoder_k(in_k)
+            feat_k = k.clone()
             k = k.view(bs, k.size(1), -1)
-            k = f.normalize(k, dim=1)  # l2 normalized feature vector
-            cosine = torch.einsum('bqi,bqj->bij', k, q)  # the cosine similarity matrix
-            match_idx = cosine.argmax(dim=1)
-        q = q.gather(2, match_idx.unsqueeze(1).expand(-1, self.dim, -1))
-        output_pos = torch.einsum('bdz,bdz->bz', [k, q]).view(bs, 1, q.size(-1))
+            feat_k = feat_k.view(bs, feat_k.size(1), -1)
+            k_norm = f.normalize(k, dim=1)  # l2 normalized feature vector
+            feat_k_norm = nn.functional.normalize(feat_k, dim=1)
+            cosine = torch.einsum('nca,ncb->nab', q, feat_k_norm)
+            match_idx = cosine.argmax(dim=-1)
+            k_norm = k_norm.gather(2, match_idx.unsqueeze(1).expand(-1, self.dim, -1))
+
+        output_pos = torch.einsum('bdz,bdz->bz', [k_norm, q]).view(bs, 1, q.size(-1))
         output_neg = torch.einsum('bdz,dq->bqz', [q, self.queue.clone().detach()])
         output = torch.concat((output_pos, output_neg), dim=1) / self.tau
         if self.is_cuda:

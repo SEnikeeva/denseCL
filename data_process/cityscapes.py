@@ -55,36 +55,40 @@ class CityscapesDataset(Dataset):
             return label_mask
 
         image = Image.open(self.rgb_path + self.XImg_list[index])
-        y = Image.open(self.label_path + self.yLabel_list[index])
-        seed = np.random.randint(2147483647)  # make a seed with numpy generator
-        random.seed(seed)
-        torch.manual_seed(seed)
-        image1 = self.transform(image)
-        random.seed(seed)
-        torch.manual_seed(seed)
-        y1 = self.target_transform(y)
+        if self.target_transform is not None:
+            y = Image.open(self.label_path + self.yLabel_list[index])
+            seed = np.random.randint(2147483647)  # make a seed with numpy generator
+            random.seed(seed)
+            torch.manual_seed(seed)
+            image1 = self.transform(image)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            y1 = self.target_transform(y)
 
-        seed = np.random.randint(2147483647)  # make a seed with numpy generator
-        random.seed(seed)
-        torch.manual_seed(seed)
-        image2 = self.transform(image)
-        random.seed(seed)
-        torch.manual_seed(seed)
-        y2 = self.target_transform(y)
+            seed2 = np.random.randint(2147483647)  # make a seed with numpy generator
+            random.seed(seed2)
+            torch.manual_seed(seed2)
+            image2 = self.transform(image)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            y2 = self.target_transform(y)
 
-        image1 = transforms.ToTensor()(image1)
-        y1 = np.array(y1)
-        y1 = encode_labels(y1)
-        y1 = torch.from_numpy(y1)
-        y1 = y1.type(torch.LongTensor)
+            image1 = transforms.ToTensor()(image1)
+            y1 = np.array(y1)
+            y1 = encode_labels(y1)
+            y1 = torch.from_numpy(y1)
+            y1 = y1.type(torch.LongTensor)
 
-        image2 = transforms.ToTensor()(image2)
-        y2 = np.array(y2)
-        y2 = encode_labels(y2)
-        y2 = torch.from_numpy(y2)
-        y2 = y2.type(torch.LongTensor)
+            image2 = transforms.ToTensor()(image2)
+            y2 = np.array(y2)
+            y2 = encode_labels(y2)
+            y2 = torch.from_numpy(y2)
+            y2 = y2.type(torch.LongTensor)
 
-        if self.eval:
-            return [image1, image2], [y1, y2], self.XImg_list[index]
+            if self.eval:
+                return [image1, image2], [y1, y2], self.XImg_list[index]
+            else:
+                return [image1, image2], [y1, y2]
         else:
-            return [image1, image2], [y1, y2]
+            image1, image2 = self.transform(image)
+            return [image1, image2]

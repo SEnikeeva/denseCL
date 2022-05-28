@@ -95,7 +95,7 @@ def main(task='train', model_name='unetcl', model_type='backbone',
                 lr = 0.001
                 model_checkpoints_folder = f'{output_folder}/{model_name}_checkpoints'
                 if not trained_backbone:
-                    model = load_and_train_backbone(model, model_name='unetcl', epoch=epoch_backbone, trained=True)
+                    model = load_and_train_backbone(model, model_name=model_name, epoch=epoch_backbone, trained=True)
                 else:
                     torch.save({
                         'state_dict': model.state_dict()
