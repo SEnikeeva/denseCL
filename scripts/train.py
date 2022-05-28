@@ -43,6 +43,8 @@ def train_epoch_head(train_loader, model, head, criterion, optimizer, model_name
     with tqdm(train_loader, unit="batch") as t_epoch:
         model.eval()
         head.train()
+        acc_sum = 0
+        counter = 1
         for (images, labels) in t_epoch:
             if kwargs['cuda']:
                 images[0] = images[0].cuda(non_blocking=True)
@@ -59,7 +61,10 @@ def train_epoch_head(train_loader, model, head, criterion, optimizer, model_name
             optimizer.step()
 
             acc = accuracy(output, target)
-            t_epoch.set_postfix(loss=loss.item(), accuracy=acc)
+            acc_sum += acc
+            mean_acc = acc_sum / counter
+            counter += 1
+            t_epoch.set_postfix(loss=loss.item(), accuracy=acc, mean_acc=mean_acc)
     return loss
 
 

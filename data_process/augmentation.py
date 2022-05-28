@@ -31,7 +31,7 @@ class PretrainAugmentation:
         self.aug_methods = transforms.Compose(
             [
                 transforms.RandomResizedCrop(100),
-                transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.),
+                transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.5),
                 transforms.RandomGrayscale(p=0.2),
                 transforms.RandomApply([transforms.GaussianBlur(1)], p=0.5),
                 transforms.RandomHorizontalFlip(),
