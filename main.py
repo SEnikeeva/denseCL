@@ -4,7 +4,6 @@ import torchvision
 
 from data_process.augmentation import PretrainAugmentation, DataAugmentation, TargetAugmentation
 from data_process.cityscapes import CityscapesDataset
-from data_process.coco import COCO
 from data_process.passport import PassportDataset
 from models.backbone import BackBone
 from models.denseCL import DenseCL
@@ -26,7 +25,7 @@ def main(task='train', model_name='unetcl', model_type='backbone',
     :param epoch: start epoch
     :param trained_backbone:
     :param epoch_backbone:
-    :param num_classes: number of classes in dataset
+    :param num_classes: number of classes in a dataset
     :param dict_size:
     :param batch_size:
     :param task: train resume_train evaluate
@@ -99,10 +98,11 @@ def main(task='train', model_name='unetcl', model_type='backbone',
                 train_set = CityscapesDataset(mode='fine', split='train', transform=DataAugmentation(292),
                                               target_transform=TargetAugmentation(292), root_dir=dataset_path)
             elif dataset_type == 'coco-2017':
-                train_set = COCO(mode='fine', split='train', transform=DataAugmentation(292),
-                                 target_transform=TargetAugmentation(292), root_dir=dataset_path)
+                train_set = CityscapesDataset(mode='fine', split='train', transform=DataAugmentation(292),
+                                              target_transform=TargetAugmentation(292), root_dir=dataset_path)
             else:
-                train_set = PassportDataset(f'{dataset_path}/data/', labels_dir=f'{dataset_path}/labels/', task='train_head')
+                train_set = PassportDataset(f'{dataset_path}/data/', labels_dir=f'{dataset_path}/labels/',
+                                            task='train_head')
             train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
 
             if task == 'train':
@@ -143,8 +143,8 @@ def main(task='train', model_name='unetcl', model_type='backbone',
             test_set = CityscapesDataset(mode='fine', split='val', transform=DataAugmentation(292),
                                          target_transform=TargetAugmentation(292), root_dir=dataset_path)
         elif dataset_type == 'coco-2017':
-            test_set = COCO(mode='fine', split='val', transform=DataAugmentation(292),
-                            target_transform=TargetAugmentation(292), root_dir=dataset_path)
+            test_set = CityscapesDataset(mode='fine', split='val', transform=DataAugmentation(292),
+                                         target_transform=TargetAugmentation(292), root_dir=dataset_path)
         else:
             test_set = PassportDataset(f'{dataset_path}/data/', labels_dir=f'{dataset_path}/labels/', task='train_head')
         miou, labels_unique = evaluate(model, head, test_set, epoch_head=epoch, epoch_model=epoch_backbone,
