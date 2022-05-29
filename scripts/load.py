@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from scripts.train import train_backbone, train_head
-from scripts.utils import weights_median_cityscapes
+from scripts.utils import weights_median_cityscapes, weights_median_passport
 
 
 def load_and_train_backbone(model, train_loader=None, model_name='unetcl', epoch=0, epochs=10,
@@ -43,6 +43,7 @@ def load_and_train_backbone(model, train_loader=None, model_name='unetcl', epoch
 
 
 def load_and_train_head(train_loader, head, model, model_name='unetcl', epoch=0, epochs=25, epoch_backbone=10,
+                        dataset_type='cityscapes_dataset',
                         output_folder='/content/drive/MyDrive/colab/UNetCL/output', **kwargs):
     checkpoints_folder = f'{output_folder}/{model_name}_head_checkpoints'
     checkpoint_path = f"{checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar"
@@ -52,18 +53,24 @@ def load_and_train_head(train_loader, head, model, model_name='unetcl', epoch=0,
     device = torch.device("cuda:0" if is_cuda else "cpu")
 
     lr = 0.001
+    weight_decay = 1e-4
     head.load_state_dict(checkpoint['state_dict'])
 
-    weights_median = weights_median_cityscapes
-    model = load_and_train_backbone(model, model_name='unetcl', epoch=epoch_backbone, trained=True)
+    if dataset_type == 'cityscapes_dataset':
+        weights_median = weights_median_cityscapes
+        ignore_index = 255
+    else:
+        weights_median = weights_median_passport
+        ignore_index = 0
+    model = load_and_train_backbone(model, model_name=model_name, epoch=epoch_backbone, trained=True)
     if is_cuda:
         model.cuda()
         head.cuda()
-        criterion_head = nn.CrossEntropyLoss(ignore_index=255, weight=weights_median.cuda()).cuda()
+        criterion_head = nn.CrossEntropyLoss(ignore_index=ignore_index, weight=weights_median.cuda()).cuda()
     else:
-        criterion_head = nn.CrossEntropyLoss(ignore_index=255, weight=weights_median.cuda())
+        criterion_head = nn.CrossEntropyLoss(ignore_index=ignore_index, weight=weights_median.cuda())
 
-    optimizer_head = torch.optim.Adam(head.parameters(), lr)
+    optimizer_head = torch.optim.Adam(head.parameters(), lr, weight_decay=weight_decay)
     optimizer_head.load_state_dict(checkpoint['optimizer'])
 
     return train_head(train_loader,

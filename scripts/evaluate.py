@@ -39,7 +39,10 @@ def evaluate(model, head, test_set, epoch_head, epoch_model, model_name='unetcl'
                 images[1] = images[1].cuda(non_blocking=True)
             for i in range(len(images)):
                 images[i] = torch.unsqueeze(images[i], dim=0)
-                X = model.encoder_q(images[i])
+                if model_name == 'densecl':
+                    X = images[i]
+                else:
+                    X = model.encoder_q(images[i])
                 y = labels[i]
                 y = torch.unsqueeze(y, dim=0)
                 X, y = X.to(device), y.to(device)

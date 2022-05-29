@@ -46,3 +46,5 @@ def extract_zip(zip_pah, directory_to_extract_to):
 weights_median_cityscapes = torch.tensor([0.0238, 0.1442, 0.0384, 1.3385, 1.0000, 0.7148, 4.2218, 1.5914, 0.0551,
                                           0.7577, 0.2183, 0.7197, 6.4924, 0.1254, 3.2801, 3.7300, 3.7667, 8.8921,
                                           2.1195])
+
+weights_median_passport = torch.tensor([0.2, 0.1, 0.6, 0.4])

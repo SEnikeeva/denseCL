@@ -38,7 +38,7 @@ class DenseCL(nn.Module):
 
     @torch.no_grad()
     def update_queues(self, k_g, k_d):
-        k_d = f.normalize(k_d.mean(dim=2), dim=1) # global average pooling
+        k_d = f.normalize(k_d.mean(dim=2), dim=1)  # global average pooling
         batch_size = k_g.shape[0]
 
         ptr = int(self.ptr)
