@@ -1,3 +1,4 @@
+import gc
 import os
 import sys
 
@@ -25,17 +26,27 @@ def clear_out_folder(output_folder):
         os.remove(path_dir)
 
 
-def imshow(img):
+def imshow(img, save=False, out_dir=''):
     img = img / 2 + 0.5  # unnormalize
     np_img = img.numpy()
     plt.imshow(np.transpose(np_img, (1, 2, 0)))
-    plt.show()
+    if save:
+        plt.savefig(out_dir)
+    else:
+        plt.show()
+    plt.close()
+    gc.collect()
 
 
-def labels_show(labels):
+def labels_show(labels, save=False, out_dir=''):
     plt.matshow(labels)
     plt.colorbar()
-    plt.show()
+    if save:
+        plt.savefig(out_dir)
+    else:
+        plt.show()
+    plt.close()
+    gc.collect()
 
 
 def extract_zip(zip_pah, directory_to_extract_to):
@@ -47,4 +58,4 @@ weights_median_cityscapes = torch.tensor([0.0238, 0.1442, 0.0384, 1.3385, 1.0000
                                           0.7577, 0.2183, 0.7197, 6.4924, 0.1254, 3.2801, 3.7300, 3.7667, 8.8921,
                                           2.1195])
 
-weights_median_passport = torch.tensor([0.2, 0.1, 0.6, 0.4])
+weights_median_passport = torch.tensor([0.3, 0.1, 0.6, 0.8])

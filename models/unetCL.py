@@ -51,7 +51,6 @@ class UNetCL(nn.Module):
 
         self.ptr[0] = ptr
 
-    # TODO: add shuffle
     def forward(self, in_q, in_k):
         bs = in_k.size(0)
         q = self.encoder_q(in_q)

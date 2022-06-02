@@ -1,13 +1,17 @@
+import os
+
 import torch
 import torch.nn as nn
 from cityscapesscripts.helpers.labels import id2label as i2l
 from tqdm import tqdm
 
 from scripts.metrics import accuracy
+from scripts.utils import imshow, labels_show, clear_out_folder
 
 
 def evaluate(model, head, test_set, epoch_head, epoch_model, model_name='unetcl',
-             output_folder='/content/drive/MyDrive/colab/UNetCL/output', is_cuda=True):
+             output_folder='/content/drive/MyDrive/colab/UNetCL/output',
+             is_cuda=True, dataset_type='cityscapes_dataset', save_images=False):
 
     head_checkpoints_folder = f'{output_folder}/{model_name}_head_checkpoints'
     head_checkpoints_path = f"{head_checkpoints_folder}/checkpoint_{epoch_head:04n}.pth.tar"
@@ -53,9 +57,27 @@ def evaluate(model, head, test_set, epoch_head, epoch_model, model_name='unetcl'
                 predictions = nn.functional.softmax(predictions, dim=1)
                 pred_labels = torch.argmax(predictions, dim=1)
                 pred_labels = pred_labels.int()
-                # Remapping the labels
-                pred_labels = pred_labels.to('cpu')
-                pred_labels.apply_(lambda x: i2l[x].id)
-                pred_labels = pred_labels.to(device)
+                if save_images:
+                    pred_labels = pred_labels.to('cpu')
+                    labels[i] = labels[i].to('cpu')
+                    images[i] = images[i].to('cpu')
+                    if dataset_type == 'cityscapes_dataset':
+                        # Remapping the labels
+                        pred_labels.apply_(lambda x: i2l[x].id)
+                    if len(pred_labels.unique()) == 4:
+                        pred_type = 'perfect'
+                    elif len(pred_labels.unique()) == 3:
+                        pred_type = 'good'
+                    else:
+                        pred_type = 'okay'
+                    out_dir = f"{output_folder}/evaluation/{pred_type}/{idx}_{i}"
+                    if not os.path.exists(out_dir):
+                        os.makedirs(out_dir)
+                    else:
+                        clear_out_folder(out_dir)
+                    imshow(images[i].squeeze(0), save=True, out_dir=f"{out_dir}/img.jpg")
+                    labels_show(labels[i].squeeze(0), save=True, out_dir=f"{out_dir}/ground.png")
+                    labels_show(pred_labels.squeeze(0), save=True, out_dir=f"{out_dir}/pred.png")
+                    pred_labels = pred_labels.to(device)
                 labels_unique.append(pred_labels.unique())
     return miou, labels_unique

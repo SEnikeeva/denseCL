@@ -113,14 +113,13 @@ class UNet3(nn.Module):
 
         self.conv1 = contract_block(in_channels, 32, 7, 3)
         self.conv2 = contract_block(32, 64, 3, 1)
-        self.conv3 = contract_block(64, 128, 3, 1)
+        self.conv3 = contract_block(64, out_channels, 3, 1)
 
-        self.upconv3 = expand_block(128, 64, 3, 1)
+        self.upconv3 = expand_block(out_channels, 64, 3, 1)
         self.upconv2 = expand_block(64 * 2, 32, 3, 1)
         self.upconv1 = expand_block(32 * 2, out_channels, 3, 1)
 
     def __call__(self, x):
-        # downsampling part
         conv1 = self.conv1(x)
         conv2 = self.conv2(conv1)
         conv3 = self.conv3(conv2)
@@ -130,6 +129,7 @@ class UNet3(nn.Module):
 
         upconv2 = self.upconv2(torch.cat([upconv3, conv2], 1))
         upconv2 = transforms.CenterCrop(conv1.size(-1))(upconv2)
+
         upconv1 = self.upconv1(torch.cat([upconv2, conv1], 1))
 
         return upconv1
