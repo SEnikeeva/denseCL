@@ -7,7 +7,7 @@ from torchvision import transforms
 
 
 class PassportDataset(Dataset):
-    def __init__(self, data_dir, task='train', labels_dir=''):
+    def __init__(self, data_dir, task='train', labels_dir='', active_learning=False):
 
         self.XImg_list = []
         self.yLabel_list = []
@@ -21,6 +21,7 @@ class PassportDataset(Dataset):
         else:
             self.yLabel_list = sorted(os.listdir(self.label_path))
         self.task = task
+        self.active_learning = active_learning
 
     def __len__(self):
         if self.task == 'train':
@@ -39,6 +40,8 @@ class PassportDataset(Dataset):
             y1 = transforms.PILToTensor()(y)
             y1 = torch.squeeze(y1, 0)
             y1 = y1.type(torch.LongTensor)
+            if self.active_learning:
+                return image1, y1, self.rgb_path + self.XImg_list[index]
             image2 = transforms.RandomHorizontalFlip(1)(image)
             image2 = transforms.ToTensor()(image2)
             image2 = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(image2)

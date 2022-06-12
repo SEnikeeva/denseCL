@@ -51,16 +51,25 @@ def train_epoch_head(train_loader, model, head, criterion, optimizer, model_name
         acc_sum = 0
         loss_sum = 0
         counter = 1
-        for (images, labels) in t_epoch:
+        for (images, labels, paths) in t_epoch:
             if kwargs['cuda']:
-                images[0] = images[0].cuda(non_blocking=True)
-                images[1] = images[1].cuda(non_blocking=True)
+                if kwargs.get('active_learning') is None:
+                    images[0] = images[0].cuda(non_blocking=True)
+                    images[1] = images[1].cuda(non_blocking=True)
+                else:
+                    images = images.cuda(non_blocking=True)
             with torch.no_grad():
                 if model_name == 'densecl':
                     x = torch.cat((images[0], images[1]), 0)
                 else:
-                    x = torch.cat((model.encoder_q(images[0]), model.encoder_q(images[1])), 0)
-            target = torch.cat((labels[0], labels[1]), 0)
+                    if kwargs.get('active_learning') is not None:
+                        x = model.encoder_q(images)
+                    else:
+                        x = torch.cat((model.encoder_q(images[0]), model.encoder_q(images[1])), 0)
+            if kwargs.get('active_learning') is not None:
+                target = labels
+            else:
+                target = torch.cat((labels[0], labels[1]), 0)
             (x, target) = (x.to(device), target.to(device))
             t_epoch.set_description(f"Epoch {kwargs['epoch']}")
             output = head(x)
@@ -76,7 +85,7 @@ def train_epoch_head(train_loader, model, head, criterion, optimizer, model_name
             mean_acc = acc_sum / counter
             counter += 1
             t_epoch.set_postfix(loss=loss.item(), accuracy=acc, mean_acc=mean_acc, mean_loss=mean_loss)
-    return loss
+    return mean_loss, mean_acc
 
 
 def train_backbone(model, optimizer, criterion, train_loader, epochs=10, start_epoch=0, is_cuda=True,
@@ -106,9 +115,10 @@ def train_head(head, model, optimizer, criterion, train_loader, epochs=10,
     head_checkpoints_folder = f'{output_folder}/{model_name}_head_checkpoints'
     writer = SummaryWriter(log_dir=f'{output_folder}/{model_name}_head_runs')
     for epoch in range(start_epoch, epochs):
-        loss = train_epoch_head(train_loader, model, head, criterion, optimizer,
+        loss, acc = train_epoch_head(train_loader, model, head, criterion, optimizer,
                                 model_name=model_name, epoch=epoch, cuda=is_cuda, **kwargs)
         writer.add_scalar("Loss/train", loss, epoch)
+        writer.add_scalar("Accuracy/train", acc, epoch)
         torch.save({
             'epoch': epoch + 1,
             'arch': f"{model_name}_head",
@@ -118,4 +128,4 @@ def train_head(head, model, optimizer, criterion, train_loader, epochs=10,
         }, f=f"{head_checkpoints_folder}/checkpoint_{epoch:04n}.pth.tar")
     writer.flush()
 
-    return model
+    return head
